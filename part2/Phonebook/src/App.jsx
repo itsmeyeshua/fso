@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { getAll, create, deletePerson, update } from "./services/persons.js"
+import { useEffect, useState } from 'react'
 
 const Filter = ({search, handleSearch}) => {
   return ( 
@@ -16,46 +17,75 @@ const PersonForm = (props) => {
   );
 }
 
-const Persons = ({persons}) => {
+const Persons = ({persons, originalPersons, setPersons, setOriginalPersons}) => {
+
+  const handleDelete = person => {
+    if (confirm(`Sure you wanna delete ${person.name}?`)) {
+      deletePerson(person.id).then(data => {
+        setPersons(persons.filter(person => person.id !== data.id));
+        setOriginalPersons(originalPersons.filter(person => person.id !== data.id));
+      })
+    }
+  }
   return ( 
     <div>
       {persons.map((person) => {
-        return <p key={person.id}>{person.name} {person.number}</p>
+        return (
+          <div key={person.id}>
+            <span>{person.name} {person.number}</span>
+            <button onClick={() => handleDelete(person)}>delete</button>
+          </div>
+        )
       })}
     </div>
   );
 }
 
 const App = () => {
-  const [persons, setPersons] = useState([
-    { name: 'Arto Hellas', number: '040-123456', id: 1 },
-    { name: 'Ada Lovelace', number: '39-44-5323523', id: 2 },
-    { name: 'Dan Abramov', number: '12-43-234345', id: 3 },
-    { name: 'Mary Poppendieck', number: '39-23-6423122', id: 4 }
-  ])
+  const [persons, setPersons] = useState([])
   const [newName, setNewName] = useState('')
   const [number, setNumber] = useState('')
   const [search, setSearch] = useState('')
-  const [originalPersons, setOriginalPersons] = useState(persons);
+  const [originalPersons, setOriginalPersons] = useState([]);
+
+  useEffect(() => {
+    getAll()
+    .then(data => {
+      setPersons(data);
+      setOriginalPersons(data);
+    })
+    .catch(err => console.error(err))
+  }, [])
 
   const handleSubmit = (e) => {
     e.preventDefault();
     let flag = true;
     persons.forEach(element => {
       if (element.name === newName) {
-        alert(`${element.name} is already in the phonebook`);
+        if( confirm(`${element.name} is already in the phonebook, replace the old number with the new one?`)) {
+          const updatedPerson = {...element, number: number};
+          update(element.id, updatedPerson).then((data) => {
+            setPersons(persons.filter(person => person.id !== data.id).concat(data));
+            setOriginalPersons(persons.filter(person => person.id !== data.id).concat(data));
+            setNewName('');
+            setNumber('');
+          })
+        }
         flag = false;
       }
     });
     if (flag) {
-        const newList = originalPersons.concat({ name: newName, number: number, id: originalPersons.length + 1 });
-        console.log(newList);
-        setPersons(newList);
-        setOriginalPersons(newList);
-        setNewName('');
-        setNumber('');
+      const newPerson = { name: newName, number: number };
+      create(newPerson)
+        .then((newData) => {
+          setPersons([...persons, newData]);
+          setOriginalPersons([...originalPersons, newData]);
+        })
+        .catch((err) => console.error(err));
+      setNewName('');
+      setNumber('');
     }
-  }
+  };
 
   const handleSearch = (e) => {
     const searchName = e.target.value;
@@ -76,7 +106,7 @@ const App = () => {
       <h2>Add a new</h2>
       <PersonForm newName={newName} number={number}  handleSubmit={handleSubmit} setNewName={setNewName} setNumber={setNumber} />
       <h2>Numbers</h2>
-      <Persons persons={persons} />
+      <Persons persons={persons} originalPersons={originalPersons} setPersons={setPersons} setOriginalPersons={setOriginalPersons}/>
     </div>
   )
 }
